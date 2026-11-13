@@ -1,0 +1,22 @@
+{
+  "name": "rollprobe",
+  "version": "1.0.0",
+  "description": "Rollprobe CLI - Deployment verification tool",
+  "type": "module",
+  "bin": {
+    "rollprobe": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "dependencies": {
+    "@rollprobe/core": "^1.0.0",
+    "@rollprobe/evidence": "^1.0.0",
+    "@rollprobe/oracle": "^1.0.0",
+    "@rollprobe/postgres": "^1.0.0",
+    "@rollprobe/protocol": "^1.0.0",
+    "@rollprobe/report": "^1.0.0",
+    "@rollprobe/runner": "^1.0.0",
+    "@rollprobe/scenario": "^1.0.0",
+    "@rollprobe/shrinker": "^1.0.0",
+    "commander": "^13.0.0"
+  }
+}

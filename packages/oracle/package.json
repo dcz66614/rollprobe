@@ -1,0 +1,12 @@
+{
+  "name": "@rollprobe/oracle",
+  "version": "1.0.0",
+  "description": "Rollprobe oracle - Business assertions, normalization, result reduction",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@rollprobe/protocol": "^1.0.0",
+    "@rollprobe/postgres": "^1.0.0"
+  }
+}

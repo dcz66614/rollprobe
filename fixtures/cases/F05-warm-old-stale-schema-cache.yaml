@@ -1,0 +1,83 @@
+id: f05-warm-old-stale-schema-cache
+title: A warm old process must see columns added by the migration
+faultFamily: schema-cache
+description: |
+  The old build captures the orders column list when it boots and keeps reusing that
+  projection. It is started before the expand migration and keeps its connection pool warm
+  through the rollout, so after the migration it still returns rows without the new
+  `currency` column while the database already stores it.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create
+    kind: http
+    phase: baseline
+    actor: old
+    description: Warm the old process and capture its projection before the migration.
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f05_warm
+        amount_cents: 8800
+        status: confirmed
+    expectStatus: [201]
+
+  - id: new-writes-new-column
+    kind: http
+    phase: expanded
+    actor: new
+    description: The new build writes a row that carries the migrated column.
+    request:
+      method: POST
+      path: /orders
+      headers:
+        Content-Type: application/json
+      json:
+        customer_id: cust_f05
+        amount_cents: 500
+        status: confirmed
+    expectStatus: [201]
+    capture:
+      orderId: body.id
+
+  - id: warm-old-reads-new-row
+    kind: http
+    phase: mixed
+    actor: old
+    description: The warm old process serves a read for the row written by the new build.
+    request:
+      method: GET
+      path: /orders/{orderId}
+    expectStatus: [200]
+
+invariants:
+  - id: f05-currency-visible
+    title: Warm old process returns the currency column added by the migration
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: http_json
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}
+    jsonPath: currency
+    expected: USD
+
+  - id: f05-currency-stored
+    title: The value really is in the database, so a missing field is a client-side loss
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT currency FROM orders WHERE id = '{orderId}'
+    expected: USD
+
+buggyBehaviour: |
+  The old build keeps the projection it captured at boot, so responses omit `currency` even
+  though the column exists and is populated.
+fixedBehaviour: |
+  The old build refreshes its projection, so the new column is visible without a restart.

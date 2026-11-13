@@ -1,0 +1,8 @@
+{
+  "name": "@rollprobe/evidence",
+  "version": "1.0.0",
+  "description": "Rollprobe evidence - Event logging, artifact bundles, verification and replay",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

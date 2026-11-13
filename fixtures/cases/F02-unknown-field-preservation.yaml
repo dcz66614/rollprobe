@@ -1,0 +1,112 @@
+id: f02-unknown-field-preservation
+title: Old build must not drop metadata keys it does not model
+faultFamily: backward-compatibility
+description: |
+  The new build stores partner-specific attributes in orders.metadata. During the rollback
+  window the old build updates the same order. Its typed v1 model only knows `source` and
+  `channel`, so a naive rewrite of the JSONB column silently deletes the new keys.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create
+    kind: http
+    phase: baseline
+    actor: old
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f02
+        amount_cents: 10000
+        source: partner-api
+        channel: mobile
+    expectStatus: [201]
+    capture:
+      orderId: body.id
+
+  - id: new-writes-unknown-fields
+    kind: http
+    phase: expanded
+    actor: new
+    description: The new build enriches the order with attributes only it understands.
+    request:
+      method: PUT
+      path: /orders/{orderId}
+      headers:
+        Content-Type: application/json
+      json:
+        status: confirmed
+        custom_promotion_code: SAVE20
+        loyalty_tier_points: 500
+        experimental_feature_flag: true
+    expectStatus: [200]
+
+  - id: old-updates-order
+    kind: http
+    phase: mixed
+    actor: old
+    description: Old build ships the order; it does not know the new metadata keys.
+    request:
+      method: PUT
+      path: /orders/{orderId}
+      headers:
+        Content-Type: application/json
+      json:
+        status: shipped
+        tracking_number: 1Z999AA10123456784
+    expectStatus: [200]
+
+  - id: read-back
+    kind: http
+    phase: app_rollback
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}
+    expectStatus: [200]
+
+invariants:
+  - id: f02-promotion-code-preserved
+    title: metadata.custom_promotion_code survives the old build update
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT (metadata ? 'custom_promotion_code') AS present FROM orders WHERE id = '{orderId}'
+    expected: true
+
+  - id: f02-loyalty-points-preserved
+    title: metadata.loyalty_tier_points keeps its original value
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT metadata->>'loyalty_tier_points' AS points FROM orders WHERE id = '{orderId}'
+    expected: '500'
+
+  - id: f02-feature-flag-preserved
+    title: metadata.experimental_feature_flag keeps its original value
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT metadata->>'experimental_feature_flag' AS flag FROM orders WHERE id = '{orderId}'
+    expected: 'true'
+
+  - id: f02-status-updated
+    title: The update the old build was asked to perform actually happened
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT status FROM orders WHERE id = '{orderId}'
+    expected: shipped
+
+buggyBehaviour: |
+  The old build rebuilds the metadata object from its v1 model and overwrites the column,
+  deleting every key it does not know about.
+fixedBehaviour: |
+  The old build merges its known keys into the existing JSONB document and leaves unknown
+  keys untouched.

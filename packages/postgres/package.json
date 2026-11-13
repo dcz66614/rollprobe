@@ -1,0 +1,23 @@
+{
+  "name": "@rollprobe/postgres",
+  "version": "1.0.0",
+  "description": "Rollprobe PostgreSQL backends - Docker container and native pg_ctl support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@rollprobe/protocol": "^1.0.0"
+  }
+}

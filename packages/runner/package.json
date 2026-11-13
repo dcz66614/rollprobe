@@ -1,0 +1,12 @@
+{
+  "name": "@rollprobe/runner",
+  "version": "1.0.0",
+  "description": "Rollprobe runner - Application lifecycle, campaign management, deployment controller",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@rollprobe/postgres": "^1.0.0",
+    "@rollprobe/protocol": "^1.0.0"
+  }
+}

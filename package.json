@@ -1,0 +1,54 @@
+{
+  "name": "rollprobe",
+  "version": "1.0.0",
+  "description": "Rolling deployment probe and verification system",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "lint": "eslint packages/*/src/**/*.ts tests/**/*.ts",
+    "demo": "node packages/cli/dist/index.js demo",
+    "doctor": "node packages/cli/dist/index.js doctor",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});for(const p of require('fs').readdirSync('packages')){require('fs').rmSync('packages/'+p+'/dist',{recursive:true,force:true})}\""
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "fast-check": "^3.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "commander": "^13.0.0",
+    "js-yaml": "^4.1.0",
+    "pg": "^8.12.0",
+    "uuid": "^14.0.3",
+    "zod": "^3.23.0"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bin": {
+    "rollprobe": "packages/cli/dist/index.js"
+  },
+  "files": [
+    "packages/*/dist",
+    "fixtures",
+    "README.md"
+  ]
+}

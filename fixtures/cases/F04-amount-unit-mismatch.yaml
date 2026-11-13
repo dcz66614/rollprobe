@@ -1,0 +1,87 @@
+id: f04-amount-unit-mismatch
+title: Stored cents must not be converted to currency twice
+faultFamily: unit-semantics
+description: |
+  amount_cents is stored in minor units. The new build renders it as dollars by dividing
+  once. The old build assumes the column already holds a decimal amount and divides again,
+  so the API reports a total two orders of magnitude too small while every type still
+  matches and every request still returns HTTP 200.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create
+    kind: http
+    phase: baseline
+    actor: old
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f04
+        amount_cents: 12345
+        status: confirmed
+    expectStatus: [201]
+    capture:
+      orderId: body.id
+
+  - id: new-renders-total
+    kind: http
+    phase: expanded
+    actor: new
+    request:
+      method: GET
+      path: /orders/{orderId}/total
+    expectStatus: [200]
+
+  - id: old-renders-total
+    kind: http
+    phase: app_rollback
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}/total
+    expectStatus: [200]
+
+invariants:
+  - id: f04-total-dollars
+    title: Old build reports 123.45 dollars for an order of 12345 cents
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: http_json
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}/total
+    jsonPath: total_dollars
+    expected: 123.45
+
+  - id: f04-amount-cents-unchanged
+    title: The stored minor-unit value is not modified by the rendering path
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT amount_cents FROM orders WHERE id = '{orderId}'
+    expected: 12345
+
+  - id: f04-new-total-consistent
+    title: New build and old build agree on the monetary total
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: http_json
+    actor: new
+    request:
+      method: GET
+      path: /orders/{orderId}/total
+    jsonPath: total_dollars
+    expected: 123.45
+
+buggyBehaviour: |
+  The old build divides the stored minor-unit value by 10000, returning 1.2345 dollars for a
+  123.45 dollar order.
+fixedBehaviour: |
+  The old build divides by 100, matching the documented unit contract.

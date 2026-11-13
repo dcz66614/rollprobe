@@ -1,0 +1,90 @@
+id: f06-incomplete-backfill
+title: A partial backfill leaves rows the old build can still write as NULL
+faultFamily: migration-completeness
+description: |
+  The expand migration adds orders.currency and backfills only part of the existing data,
+  leaving the column nullable. The old build never learned about the column, so every order
+  it writes after the migration has currency = NULL, and the new build's reads see a mix of
+  backfilled and missing values.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create-pending
+    kind: http
+    phase: baseline
+    actor: old
+    description: A row whose status is not touched by the partial backfill.
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f06_baseline
+        amount_cents: 3300
+        status: pending
+    expectStatus: [201]
+
+  - id: mixed-old-writes-after-migration
+    kind: http
+    phase: mixed
+    actor: old
+    description: The old build keeps writing during the rollout window.
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f06
+        amount_cents: 1500
+        status: shipped
+    expectStatus: [201]
+    capture:
+      orderId: body.id
+
+  - id: rollback-old-writes-again
+    kind: http
+    phase: app_rollback
+    actor: old
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f06_rollback
+        amount_cents: 900
+        status: confirmed
+    expectStatus: [201]
+
+invariants:
+  - id: f06-no-null-currency
+    title: No order is left without a currency after the rollout
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT count(*)::int AS n FROM orders WHERE currency IS NULL
+    expected: 0
+
+  - id: f06-backfill-complete
+    title: Every pre-migration order received the backfilled default
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT count(*)::int AS n FROM orders WHERE created_at < now() AND currency IS DISTINCT FROM 'USD'
+    expected: 0
+
+  - id: f06-old-write-has-currency
+    title: The row written by the old build carries an explicit currency
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT currency FROM orders WHERE id = '{orderId}'
+    expected: USD
+
+buggyBehaviour: |
+  The migration backfills only rows with status 'confirmed' and leaves the column nullable,
+  so the old build writes NULL currency for everything it creates.
+fixedBehaviour: |
+  The migration backfills every row, then applies DEFAULT 'USD' and NOT NULL so no writer can
+  introduce a NULL.

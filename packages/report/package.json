@@ -1,0 +1,13 @@
+{
+  "name": "@rollprobe/report",
+  "version": "1.0.0",
+  "description": "Rollprobe reports - Offline HTML generation with event timelines and coverage matrices",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@rollprobe/protocol": "^1.0.0",
+    "@rollprobe/core": "^1.0.0",
+    "@rollprobe/evidence": "^1.0.0"
+  }
+}

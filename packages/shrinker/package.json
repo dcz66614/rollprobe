@@ -1,0 +1,21 @@
+{
+  "name": "@rollprobe/shrinker",
+  "version": "1.0.0",
+  "description": "Rollprobe shrinker - causal reduction of failing campaigns by re-execution",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@rollprobe/core": "^1.0.0",
+    "@rollprobe/protocol": "^1.0.0",
+    "js-yaml": "^4.1.0"
+  }
+}

@@ -1,0 +1,91 @@
+id: f03-unknown-enum-handling
+title: Old build must not reinterpret a status value it does not know
+faultFamily: enum-compatibility
+description: |
+  The new build introduces the status `refund_pending`. After the application is rolled
+  back, the old build reads that row. A switch/case with a silent default maps the unknown
+  value onto `active`, which is a different business state and hides the pending refund.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create
+    kind: http
+    phase: baseline
+    actor: old
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f03
+        amount_cents: 4200
+        status: confirmed
+    expectStatus: [201]
+    capture:
+      orderId: body.id
+
+  - id: new-writes-new-enum
+    kind: http
+    phase: expanded
+    actor: new
+    description: New build moves the order into a state the old build has never seen.
+    request:
+      method: PUT
+      path: /orders/{orderId}
+      headers:
+        Content-Type: application/json
+      json:
+        status: refund_pending
+    expectStatus: [200]
+
+  - id: old-reads-row
+    kind: http
+    phase: app_rollback
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}
+    expectStatus: [200]
+
+invariants:
+  - id: f03-status-not-misinterpreted
+    title: Old build reports the stored status instead of mapping it to `active`
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: http_json
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}
+    jsonPath: status
+    expected: refund_pending
+
+  - id: f03-unknown-flagged
+    title: Old build explicitly flags that the status is outside its known set
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: http_json
+    actor: old
+    request:
+      method: GET
+      path: /orders/{orderId}
+    jsonPath: status_known
+    expected: false
+
+  - id: f03-db-value-untouched
+    title: The stored value was never rewritten by the read path
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT status FROM orders WHERE id = '{orderId}'
+    expected: refund_pending
+
+buggyBehaviour: |
+  The old build normalises any unknown status to `active` and returns no signal that the
+  value was unrecognised.
+fixedBehaviour: |
+  The old build passes the stored value through and sets status_known=false.

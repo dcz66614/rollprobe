@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/protocol" },
+    { "path": "./packages/postgres" },
+    { "path": "./packages/evidence" },
+    { "path": "./packages/scenario" },
+    { "path": "./packages/runner" },
+    { "path": "./packages/oracle" },
+    { "path": "./packages/core" },
+    { "path": "./packages/shrinker" },
+    { "path": "./packages/report" },
+    { "path": "./packages/cli" }
+  ]
+}

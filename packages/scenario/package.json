@@ -1,0 +1,11 @@
+{
+  "name": "@rollprobe/scenario",
+  "version": "1.0.0",
+  "description": "Rollprobe scenario - Operation DAG, HTTP requests, variable references",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@rollprobe/protocol": "^1.0.0"
+  }
+}

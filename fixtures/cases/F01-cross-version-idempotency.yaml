@@ -1,0 +1,96 @@
+id: f01-cross-version-idempotency
+title: Cross-version retry must not duplicate the business effect
+faultFamily: idempotency
+description: |
+  The new build accepts an Idempotency-Key and records it in orders.external_ref.
+  A response is lost in transit, so the client retries the *same* logical operation
+  against the old build, which is still serving traffic during the rollback window.
+  The old build must resolve the retry to the row the new build already committed.
+
+baseMigration: fixtures/orders/migrations/001-base-schema.sql
+expandMigration: fixtures/orders/migrations/002-expand-{mode}.sql
+
+operations:
+  - id: baseline-create
+    kind: http
+    phase: baseline
+    actor: old
+    description: Old build creates an order on the base schema (proves baseline works).
+    request:
+      method: POST
+      path: /orders
+      json:
+        customer_id: cust_f01_baseline
+        amount_cents: 5000
+    expectStatus: [201]
+
+  - id: new-health
+    kind: http
+    phase: expanded
+    actor: new
+    description: New build is up on the expanded schema.
+    request:
+      method: GET
+      path: /health
+    expectStatus: [200]
+
+  - id: lost-response-retry
+    kind: discard_retry
+    phase: mixed
+    actor: none
+    description: |
+      First attempt goes to the new build; the proxy consumes the full upstream response,
+      proves the row is committed on an independent connection, then kills the downstream
+      socket. The client retries the same logical operation against the old build.
+    target: new
+    retryTarget: old
+    logicalOperationId: f01-logical-create
+    idempotencyKey: f01-idem-key
+    request:
+      method: POST
+      path: /orders
+      headers:
+        Content-Type: application/json
+      json:
+        customer_id: cust_f01
+        amount_cents: 2500
+        status: confirmed
+    effectSql: SELECT count(*)::int AS n FROM orders WHERE external_ref = 'f01-idem-key'
+    effectExpectedMin: 1
+    capture:
+      retriedOrderId: body.id
+
+  - id: rollback-health
+    kind: http
+    phase: app_rollback
+    actor: old
+    request:
+      method: GET
+      path: /health
+    expectStatus: [200]
+
+invariants:
+  - id: f01-single-effect
+    title: The retried logical operation produced exactly one order
+    authority: authoritative
+    requirement: required
+    phase: mixed
+    type: sql_scalar
+    sql: SELECT count(*)::int AS n FROM orders WHERE customer_id = 'cust_f01'
+    expected: 1
+
+  - id: f01-data-persisted
+    title: The committed order survived the rollback to the old build
+    authority: authoritative
+    requirement: required
+    phase: app_rollback
+    type: sql_scalar
+    sql: SELECT count(*)::int AS n FROM orders WHERE customer_id = 'cust_f01' AND amount_cents = 2500
+    expected: 1
+
+buggyBehaviour: |
+  The old build accepts the Idempotency-Key header but ignores it, so the retry inserts a
+  second order for the same logical operation.
+fixedBehaviour: |
+  The old build resolves the key against orders.external_ref and returns the row created by
+  the new build instead of inserting again.
