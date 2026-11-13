@@ -141,14 +141,16 @@ program
     });
 
     const dockerBinary = resolveDockerBinary();
+    const docker = new DockerClient(dockerBinary);
+    // PATH commands such as "docker" on Linux are executable even if existsSync("docker") is false.
+    // Check CLI availability by executing the CLI, not by treating the name as a file path.
+    const dockerCliProbe = await docker.run(['--version'], { allowFailure: true, timeoutMs: 10_000 });
     checks.push({
       name: 'docker-cli',
-      ok: existsSync(dockerBinary) || dockerBinary.endsWith('docker.exe'),
-      detail: dockerBinary,
+      ok: dockerCliProbe.exitCode === 0,
+      detail: dockerCliProbe.exitCode === 0 ? dockerCliProbe.stdout : dockerCliProbe.stderr || dockerBinary,
       critical: true,
     });
-
-    const docker = new DockerClient(dockerBinary);
     const backend = new DockerPostgresBackend(new ResourceRegistry(), docker);
     const capabilities = await backend.capabilities();
     checks.push({
